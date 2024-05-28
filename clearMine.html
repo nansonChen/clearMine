@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>扫雷小游戏</title>
+	<style>
+		body {
+			margin: 0;
+		}
+
+		.clearMineBox {
+			width: 404px;
+			margin: 0 auto;
+		}
+
+		#mapBox {
+			width: calc(100% - 4px);
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			padding: 2px;
+			background-color: #666;
+		}
+
+		#mapBox .mapItem {
+			width: 40px;
+			height: 40px;
+			background-color: #ddd;
+			text-align: center;
+			line-height: 40px;
+			font-size: 20px;
+			cursor: pointer;
+			box-sizing: border-box;
+		}
+
+		#mapBox .mapItem.noOpen {
+			text-indent: -9999px;
+			background: #ccc;
+			box-shadow: inset -3px -3px 2px #888,
+				inset 3px 3px 2px #eee;
+		}
+
+		#mapBox .mapItem.noOpen.isMark {
+			position: relative;
+		}
+
+		#mapBox .mapItem.noOpen.isMark::after {
+			content: '';
+			position: absolute;
+			top: 10px;
+			left: 10px;
+			width: 14px;
+			height: 14px;
+			border: 3px solid #0e991a;
+			border-radius: 20px;
+		}
+
+		#mapBox .mapItem.isOpen {
+			border: 1px solid #ddd;
+			background: #ffffff;
+		}
+
+		#mapBox .mapItem.isOpen.boom {
+			background-color: rgb(145, 26, 26);
+			color: #ffffff !important;
+		}
+
+		.settingBox {
+			width: 400px;
+			margin: 0 auto;
+			padding: 20px 0px 10px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		.settingBox .inputBox {
+			width: 105px;
+			font-size: 14px;
+			color: #333;
+			display: flex;
+			align-items: center;
+		}
+
+		.settingBox .inputBox .settingInput {
+			width: 45px;
+			height: 20px;
+			outline: none;
+			border: 1px solid;
+			border-color: transparent transparent #999 transparent;
+			text-align: center;
+		}
+
+		.settingBox #startGameBtn {
+			width: 70px;
+			height: 28px;
+			line-height: 28px;
+			font-size: 14px;
+			color: #333;
+			text-align: center;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+
+		.timeAndRetry {
+			width: 400px;
+			padding: 10px 0 15px;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+
+		.timeAndRetry #timerBox,
+		.timeAndRetry #surplus {
+			font-size: 18px;
+			font-weight: bold;
+			color: #333;
+			margin-right: 55px;
+		}
+
+		.timeAndRetry #surplus {
+			width: 150px;
+			margin-right: 15px;
+		}
+
+		.timeAndRetry #retryBtn {
+			width: 80px;
+			height: 28px;
+			line-height: 28px;
+			font-size: 14px;
+			color: #333;
+			text-align: center;
+			border: 1px solid #ccc;
+			border-radius: 5px;
+			cursor: pointer;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="clearMineBox" id="clearMineBox">
+		<div class="settingBox">
+			<div class="inputBox">雷数：<input type="text" class="settingInput" id="mineInput"></div>
+			<div class="inputBox">行数：<input type="text" class="settingInput" id="rowInput"></div>
+			<div class="inputBox">列数：<input type="text" class="settingInput" id="colInput"></div>
+			<div id="startGameBtn">开始游戏</div>
+		</div>
+		<div class="timeAndRetry">
+			<div id="surplus">剩余雷数：0</div>
+			<div id="timerBox">时间：000</div>
+			<div id="retryBtn">重新开始</div>
+		</div>
+		<div id="mapBox"></div>
+	</div>
+</body>
+<script>
+	let map = []; // 初级：10 * 15，10雷
+	let mineArr = []; // 地雷位置数组
+	let mineNum = 10; // 地雷数量
+	let mapRow = 15; // 地图行数
+	let mapCol = 10; // 地图列数
+	let openCount = 0; // 统计已经点开的方块数量
+	let startTime = true; // 开始计时用的flag
+	let totalTime = 0; // 总时间计时
+	let targetCount = 0; // 标记地雷的总数量
+	var interval = null;
+	var interval2 = null;
+
+	const mineInput = document.getElementById("mineInput");
+	const rowInput = document.getElementById("rowInput");
+	const colInput = document.getElementById("colInput");
+	const startGameBtn = document.getElementById("startGameBtn");
+	const retryBtn = document.getElementById("retryBtn");
+	const surplus = document.getElementById("surplus");
+	const clearMineBox = document.getElementById("clearMineBox");
+
+	document.getElementById("surplus").innerText = '剩余雷数：' + (mineNum - targetCount);
+	mineInput.value = 10;
+	rowInput.value = 15;
+	colInput.value = 10;
+
+	function getuserInputData() {
+		clearInterval(interval);
+		clearInterval(interval2);
+		mineNum = 10;
+		mapRow = 15;
+		mapCol = 10;
+		startTime = true;
+		totalTime = 0;
+		targetCount = 0;
+		openCount = 0;
+		document.getElementById("timerBox").innerText = '时间：00' + totalTime;
+		document.getElementById("surplus").innerText = '剩余雷数：' + (mineNum - targetCount);
+		// 移除盒子新增盒子，这样可以移除掉原来监听的鼠标事件
+		const mapBoxEl = document.getElementById("mapBox");
+		mapBoxEl.parentNode.removeChild(mapBoxEl);
+		let childEl = document.createElement('div');
+		childEl.id = "mapBox";
+		clearMineBox.appendChild(childEl);
+
+		if (!isNaN(mineInput.value) && !isNaN(rowInput.value) && !isNaN(colInput.value) &&
+			mineNum < (mapRow * mapCol / 2) && mineInput.value != "" && rowInput.value != "" && colInput.value != "") {
+			mineNum = Number(mineInput.value);
+			mapRow = Number(rowInput.value);
+			mapCol = Number(colInput.value);
+		} else {
+			alert("请输入数字且地雷数量不能超过所有格子数的一半");
+		}
+		clearMineStart();
+	}
+
+	startGameBtn.addEventListener('click', e => {
+		getuserInputData();
+	});
+
+	retryBtn.addEventListener('click', e => {
+		getuserInputData();
+	});
+
+	clearMineStart(); // 进到页面第一次初始化
+	function clearMineStart() {
+		clearMineBox.style.width = (mapCol * 40 + 4) + 'px';
+		// 生成规定数量的地雷，保存的是地雷应该在的位置
+		mineArr = [];
+		do {
+			let rand = Math.floor(Math.random() * (mapCol * mapRow));
+			if (!mineArr.includes(rand)) {
+				mineArr.push(rand);
+			}
+		} while (mineArr.length < mineNum);
+
+		// 先固定雷的位置做测试
+		// mineArr = [ 139, 112, 46, 70, 107, 40, 141, 3, 80, 115 ];
+
+		// 生成地图数据并将地雷放到相应的位置 0：空白， 1-8：周围格子的地雷数量， 9：地雷
+		map = [];
+		for (let i = 1; i <= mapRow; i++) {
+			let arr = [];
+			for (let j = 1; j <= mapCol; j++) {
+				let num = ((i - 1) * mapCol) + j;
+				if (mineArr.includes(num)) {
+					arr.push(9);
+				} else {
+					arr.push(0);
+				}
+			}
+			map.push(arr);
+		}
+
+		// 拿到地图数据处理生成dom模板并渲染到页面上
+		let htmlArr = [];
+		map.forEach((row, rowIndex) => {
+			row.forEach((col, colIndex) => {
+				let value = col;
+				// 初始地图数据非地雷都是给的0， 需要再次遍历每一个格子并查找它周围含有的地雷数量并将数字更新上去
+				if (col == 0) {
+					let num = 0;
+					let leftTop = map[rowIndex - 1] && map[rowIndex - 1][colIndex - 1] == 9 ? 1 : 0;
+					let middleTop = map[rowIndex - 1] && map[rowIndex - 1][colIndex] == 9 ? 1 : 0;
+					let rightTop = map[rowIndex - 1] && map[rowIndex - 1][colIndex + 1] == 9 ? 1 : 0;
+					let right = map[rowIndex] && map[rowIndex][colIndex + 1] == 9 ? 1 : 0;
+					let rightBottom = map[rowIndex + 1] && map[rowIndex + 1][colIndex + 1] == 9 ? 1 : 0;
+					let middleBottom = map[rowIndex + 1] && map[rowIndex + 1][colIndex] == 9 ? 1 : 0;
+					let leftBottom = map[rowIndex + 1] && map[rowIndex + 1][colIndex - 1] == 9 ? 1 : 0;
+					let left = map[rowIndex] && map[rowIndex][colIndex - 1] == 9 ? 1 : 0;
+
+					if (leftTop) num++;
+					if (middleTop) num++;
+					if (rightTop) num++;
+					if (right) num++;
+					if (rightBottom) num++;
+					if (middleBottom) num++;
+					if (leftBottom) num++;
+					if (left) num++;
+
+					if (num !== 0) {
+						value = num;
+						map[rowIndex][colIndex] = num;
+					}
+				}
+				let str = value == 9 ? '*' : value > 0 ? value : "";
+				if (str === '*') {
+					let html = `<div class="mapItem noOpen" id="${rowIndex}_${colIndex}" style="font-weight:bold;font-size:50px;line-height:56px;">${str}</div>`;
+					htmlArr.push(html);
+				} else {
+					let html = `<div class="mapItem noOpen" id="${rowIndex}_${colIndex}" style="font-size:16px;color:#666;">${str}</div>`;
+					htmlArr.push(html);
+				}
+			});
+		});
+
+		const mapBoxEl = document.getElementById("mapBox");
+		let htmls = htmlArr.join("");
+		mapBoxEl.innerHTML = htmls;
+
+		// 用户点击格子事件监听，这里用的事件委托
+		mapBoxEl.addEventListener('click', e => {
+			let position = e.target.id.split('_');
+			if (e.target.className.indexOf("mapItem") !== -1 && e.target.className == "mapItem noOpen") {
+				// 利用flag标记当用户第一次点击时开始计时
+				if (startTime) {
+					startTiming();
+				}
+				startTime = false;
+				e.target.className = "mapItem isOpen";
+				openCount++;
+				if (map[position[0]][position[1]] == 0) {
+					// 如果点击到了空白格子，需要将周围的空白格子都打开
+					getAroundIndex(position[0], position[1]);
+				}
+				if (map[position[0]][position[1]] == 9) {
+					// 点到地雷，游戏结束，标记点到的地雷，打开全部格子
+					e.target.className = "mapItem isOpen boom";
+					openAll();
+				}
+			}
+		});
+
+		// 监听鼠标右键事件，标记/取消标记地雷位置，有多少个雷就只能添加多少个标记
+		mapBoxEl.addEventListener('contextmenu', e => {
+			event.preventDefault();
+			if (e.target.className.indexOf("mapItem") !== -1 && e.target.className == "mapItem noOpen" && targetCount < mineNum) {
+				e.target.className = "mapItem noOpen isMark";
+				targetCount++;
+			} else if (e.target.className.indexOf("mapItem") !== -1 && e.target.className == "mapItem noOpen isMark") {
+				e.target.className = "mapItem noOpen";
+				targetCount--;
+			}
+			document.getElementById("surplus").innerText = '剩余雷数：' + (mineNum - targetCount);
+		});
+
+		function getAroundIndex(row, col) {
+			const rowIndex = Number(row);
+			const colIndex = Number(col);
+			findZero(rowIndex - 1, colIndex - 1);
+			findZero(rowIndex - 1, colIndex);
+			findZero(rowIndex - 1, colIndex + 1);
+			findZero(rowIndex, colIndex + 1);
+			findZero(rowIndex + 1, colIndex + 1);
+			findZero(rowIndex + 1, colIndex);
+			findZero(rowIndex + 1, colIndex - 1);
+			findZero(rowIndex, colIndex - 1);
+		}
+
+		function findZero(rowIndex, colIndex) {
+			if (rowIndex < mapRow && colIndex < mapCol && rowIndex >= 0 && colIndex >= 0) {
+				const El = document.getElementById(`${rowIndex}_${colIndex}`);
+				// 注意事项：点到空白格子，周围的空白都要打开并且邻近空格子的一个数字格子也要打开。但是，只有当前这个是空白格子才需要继续递归查询
+				if ((map[rowIndex][colIndex] === 0 || map[rowIndex][colIndex] !== 9) && El.className == "mapItem noOpen") {
+					El.className = "mapItem isOpen";
+					openCount++;
+					if (map[rowIndex][colIndex] === 0) {
+						getAroundIndex(rowIndex, colIndex);
+					}
+				}
+			}
+		}
+
+		function openAll() {
+			map.forEach((row, rowIndex) => {
+				row.forEach((col, colIndex) => {
+					const El = document.getElementById(`${rowIndex}_${colIndex}`);
+					if (El.className == "mapItem noOpen") {
+						El.className = "mapItem isOpen";
+					}
+				});
+			});
+			clearInterval(interval);
+			clearInterval(interval2);
+			setTimeout(() => {
+				alert("你失败了！！！！！");
+			}, 200);
+		}
+
+		// 监听当局游戏进度，成功过关播报
+		interval = setInterval(() => {
+			if (openCount == ((mapRow * mapCol) - targetCount)) {
+				alert("恭喜通关！！！！！");
+				clearInterval(interval);
+			}
+		}, 100);
+
+		// 游戏计时
+		interval2 = null;
+		function startTiming() {
+			interval2 = setInterval(() => {
+				totalTime++;
+				document.getElementById("timerBox").innerText = '时间：' + (totalTime < 10 ? `00${totalTime}` : totalTime < 100 ? `0${totalTime}` : totalTime);
+				if (openCount == ((mapRow * mapCol) - mineNum)) {
+					clearInterval(interval2);
+				}
+			}, 1000);
+		}
+	}
+</script>
+
+</html>
